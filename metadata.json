@@ -1,0 +1,6 @@
+{
+  "name": "Kaoyan English II Essay Template Library",
+  "description": "Interactive essay template selector, live keyword filler, and copyable writing studio for Postgraduate English II templates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
