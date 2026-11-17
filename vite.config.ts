@@ -6,6 +6,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    base: '/essay_template/',
     plugins: [
       react(),
       tailwindcss(),
