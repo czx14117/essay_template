@@ -1,61 +1,40 @@
-export type CategoryGroup = 'chart' | 'drawing' | 'text';
+import {
+  SMALL_ESSAY_TEMPLATES,
+  SMALL_ESSAY_36_SENTENCES,
+  SMALL_ESSAY_WORKFLOW,
+} from './smallTemplates';
+import type { CategoryGroup, EssayPart, EssayTemplate } from './types';
 
-export interface KeywordSpec {
-  key: string;
-  labelCn: string;
-  grammarNote: string;
-  examples: string;
-  sampleValue: string;
-}
+export type {
+  AlternativeOpening,
+  CategoryGroup,
+  EssayPart,
+  EssayTemplate,
+  ExamExample,
+  KeywordSpec,
+} from './types';
 
-export interface AlternativeOpening {
-  id: string;
+export { SMALL_ESSAY_36_SENTENCES, SMALL_ESSAY_WORKFLOW };
+
+export const CATEGORY_GROUPS: {
+  id: CategoryGroup;
+  part: EssayPart;
   label: string;
-  sentence: string;
-}
-
-export interface ExamExample {
-  title: string;
-  sourceNote: string;
-  p1: string;
-  p2: string;
-  p3: string;
-}
-
-export interface EssayTemplate {
-  id: string;
-  code: string;
-  group: CategoryGroup;
-  groupLabel: string;
-  name: string;
-  englishName: string;
-  priority: string;
-  summary: string;
-  applicability: string;
-  fixedWordCount: number;
-  blankWordRange: string;
-  estimatedTotalRange: string;
-  openingPlaceholderNote: string;
-  defaultOpening: string;
-  p1Rest: string;
-  p2: string;
-  p2OptionalReason3?: string;
-  p3: string;
-  altOpenings: AlternativeOpening[];
-  keywords: KeywordSpec[];
-  examExample: ExamExample;
-}
-
-export const CATEGORY_GROUPS: { id: CategoryGroup; label: string; shortLabel: string }[] = [
-  { id: 'chart', label: 'A. 图表作文（英语二核心）', shortLabel: 'Chart & Graph' },
-  { id: 'drawing', label: 'B. 图画作文简版', shortLabel: 'Drawing' },
-  { id: 'text', label: 'C. 文字作文简版', shortLabel: 'Text Excerpt' },
+  shortLabel: string;
+}[] = [
+  { id: 'chart', part: 'partB', label: 'A. 图表作文（英语二核心）', shortLabel: 'Chart & Graph' },
+  { id: 'drawing', part: 'partB', label: 'B. 图画作文简版', shortLabel: 'Drawing' },
+  { id: 'text', part: 'partB', label: 'C. 文字作文简版', shortLabel: 'Text Excerpt' },
+  { id: 'small_letter', part: 'partA', label: 'S1–S2. 书信邮件模板', shortLabel: 'Letters & Emails' },
+  { id: 'small_notice', part: 'partA', label: 'S3. 通知与告示模板', shortLabel: 'Notice' },
+  { id: 'small_minutes', part: 'partA', label: 'S4. 会议纪要模板', shortLabel: 'Minutes' },
 ];
 
 export const ESSAY_TEMPLATES: EssayTemplate[] = [
   {
     id: 'a1-dynamic-single',
     code: 'A1',
+    part: 'partB',
     group: 'chart',
     groupLabel: 'Chart · Dynamic Single Trend',
     name: '动态·单方向模板',
@@ -222,6 +201,7 @@ export const ESSAY_TEMPLATES: EssayTemplate[] = [
   {
     id: 'a2-dynamic-multi',
     code: 'A2',
+    part: 'partB',
     group: 'chart',
     groupLabel: 'Chart · Divergent Trends',
     name: '动态·多方向模板',
@@ -437,6 +417,7 @@ export const ESSAY_TEMPLATES: EssayTemplate[] = [
   {
     id: 'a3-static-3d',
     code: 'A3',
+    part: 'partB',
     group: 'chart',
     groupLabel: 'Chart · Static 3D (Distribution / Dominance / Disparity)',
     name: '静态图模板（分布/主导/差距）',
@@ -631,6 +612,7 @@ export const ESSAY_TEMPLATES: EssayTemplate[] = [
   {
     id: 'a4-dual-charts',
     code: 'A4',
+    part: 'partB',
     group: 'chart',
     groupLabel: 'Chart · Dual Charts',
     name: '双图表模板（静静 / 动静）',
@@ -825,6 +807,7 @@ export const ESSAY_TEMPLATES: EssayTemplate[] = [
   {
     id: 'a5-table-fallback',
     code: 'A5',
+    part: 'partB',
     group: 'chart',
     groupLabel: 'Chart · Table & Fallback',
     name: '表格 / 通用兜底模板',
@@ -1019,6 +1002,7 @@ export const ESSAY_TEMPLATES: EssayTemplate[] = [
   {
     id: 'b1-single-drawing',
     code: 'B1',
+    part: 'partB',
     group: 'drawing',
     groupLabel: 'Drawing · Single Cartoon',
     name: '单图画作文简版',
@@ -1171,6 +1155,7 @@ export const ESSAY_TEMPLATES: EssayTemplate[] = [
   {
     id: 'b2-drawing-chart',
     code: 'B2',
+    part: 'partB',
     group: 'drawing',
     groupLabel: 'Drawing + Chart Hybrid',
     name: '图画+图表混合简版',
@@ -1322,6 +1307,7 @@ export const ESSAY_TEMPLATES: EssayTemplate[] = [
   {
     id: 'c1-text-excerpt',
     code: 'C1',
+    part: 'partB',
     group: 'text',
     groupLabel: 'Text Excerpt · Argument',
     name: '文字作文简版',
@@ -1444,6 +1430,11 @@ export const ESSAY_TEMPLATES: EssayTemplate[] = [
       p3: '需补充（PDF未单列文字样题三段，按“通用第三段母版”重申主题并提出个人与社会措施即可）。',
     },
   },
+];
+
+export const ALL_TEMPLATES: EssayTemplate[] = [
+  ...ESSAY_TEMPLATES,
+  ...SMALL_ESSAY_TEMPLATES,
 ];
 
 export const UNIVERSAL_MODULES = {

@@ -10,8 +10,9 @@ import {
   X,
 } from 'lucide-react';
 import {
+  ALL_TEMPLATES,
   CATEGORY_GROUPS,
-  ESSAY_TEMPLATES,
+  EssayPart,
   EssayTemplate,
   UNIVERSAL_MODULES,
 } from './data/templates';
@@ -23,6 +24,7 @@ import {
 
 type TopSection = 'templates' | 'universal' | 'keywords' | 'workflow';
 type WorkspaceTab = 'template' | 'example';
+type PartFilter = 'all' | EssayPart;
 
 function countWords(text: string): number {
   const cleaned = text.replace(/【[^】]+】/g, ' placeholder ').trim();
@@ -93,7 +95,8 @@ function renderInteractiveProse(
 
 export default function App() {
   const [activeSection, setActiveSection] = useState<TopSection>('templates');
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(ESSAY_TEMPLATES[0].id);
+  const [partFilter, setPartFilter] = useState<PartFilter>('all');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(ALL_TEMPLATES[0].id);
   const [searchQuery, setSearchQuery] = useState('');
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('template');
   const [selectedOpeningByTemplate, setSelectedOpeningByTemplate] = useState<
@@ -108,20 +111,22 @@ export default function App() {
 
   const filteredTemplates = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return ESSAY_TEMPLATES;
-    return ESSAY_TEMPLATES.filter(
-      (t) =>
+    return ALL_TEMPLATES.filter((t) => {
+      if (partFilter !== 'all' && t.part !== partFilter) return false;
+      if (!q) return true;
+      return (
         t.code.toLowerCase().includes(q) ||
         t.name.toLowerCase().includes(q) ||
         t.englishName.toLowerCase().includes(q) ||
         t.summary.toLowerCase().includes(q) ||
         t.examExample.title.toLowerCase().includes(q)
-    );
-  }, [searchQuery]);
+      );
+    });
+  }, [searchQuery, partFilter]);
 
   const activeTemplate: EssayTemplate = useMemo(() => {
     return (
-      ESSAY_TEMPLATES.find((t) => t.id === selectedTemplateId) ?? ESSAY_TEMPLATES[0]
+      ALL_TEMPLATES.find((t) => t.id === selectedTemplateId) ?? ALL_TEMPLATES[0]
     );
   }, [selectedTemplateId]);
 
@@ -133,25 +138,53 @@ export default function App() {
     return found ? found.sentence : activeTemplate.defaultOpening;
   }, [activeTemplate, selectedOpeningByTemplate]);
 
+  const appendOptionalToP3 = activeTemplate.id === 's4-minutes';
+  const rawHeader = activeTemplate.headerBlock ?? '';
+  const rawFooter = activeTemplate.footerBlock ?? '';
   const rawP1 = `${activeOpeningSentence} ${activeTemplate.p1Rest}`;
   const rawP2 =
-    includeReason3 && activeTemplate.p2OptionalReason3
+    !appendOptionalToP3 && includeReason3 && activeTemplate.p2OptionalReason3
       ? `${activeTemplate.p2} ${activeTemplate.p2OptionalReason3}`
       : activeTemplate.p2;
-  const rawP3 = activeTemplate.p3;
+  const rawP3 =
+    appendOptionalToP3 && includeReason3 && activeTemplate.p2OptionalReason3
+      ? `${activeTemplate.p3} ${activeTemplate.p2OptionalReason3}`
+      : activeTemplate.p3;
 
+  const resolvedHeader = rawHeader ? resolveText(rawHeader, currentValues) : '';
+  const resolvedFooter = rawFooter ? resolveText(rawFooter, currentValues) : '';
   const resolvedP1 = resolveText(rawP1, currentValues);
   const resolvedP2 = resolveText(rawP2, currentValues);
   const resolvedP3 = resolveText(rawP3, currentValues);
-  const resolvedFullEssay = `${resolvedP1}\n\n${resolvedP2}\n\n${resolvedP3}`;
+  const resolvedFullEssay = [
+    resolvedHeader,
+    resolvedP1,
+    resolvedP2,
+    resolvedP3,
+    resolvedFooter,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   const totalWordCount = useMemo(() => {
     if (workspaceTab === 'example') {
       const ex = activeTemplate.examExample;
       return countWords(`${ex.p1} ${ex.p2} ${ex.p3}`);
     }
-    return countWords(`${resolvedP1} ${resolvedP2} ${resolvedP3}`);
-  }, [workspaceTab, activeTemplate, resolvedP1, resolvedP2, resolvedP3]);
+    return countWords(
+      [resolvedHeader, resolvedP1, resolvedP2, resolvedP3, resolvedFooter]
+        .filter(Boolean)
+        .join(' ')
+    );
+  }, [
+    workspaceTab,
+    activeTemplate,
+    resolvedHeader,
+    resolvedP1,
+    resolvedP2,
+    resolvedP3,
+    resolvedFooter,
+  ]);
 
   const filledSlotCount = useMemo(() => {
     return activeTemplate.keywords.filter(
@@ -171,6 +204,17 @@ export default function App() {
     setSelectedTemplateId(id);
     setActiveSection('templates');
     setHighlightedKey(null);
+  };
+
+  const handleSelectPartFilter = (nextPart: PartFilter) => {
+    setPartFilter(nextPart);
+    if (nextPart !== 'all' && activeTemplate.part !== nextPart) {
+      const firstMatch = ALL_TEMPLATES.find((t) => t.part === nextPart);
+      if (firstMatch) {
+        setSelectedTemplateId(firstMatch.id);
+        setHighlightedKey(null);
+      }
+    }
   };
 
   const handleUpdateKeyword = (key: string, value: string) => {
@@ -349,108 +393,168 @@ export default function App() {
         {activeSection === 'workflow' && <ExamWorkflowView />}
 
         {activeSection === 'templates' && (
-          <div className="flex flex-col lg:flex-row gap-8 items-start">
-            {/* Left Category Sidebar */}
-            <aside className="w-full lg:w-[290px] shrink-0 lg:sticky lg:top-24 space-y-5">
-              {/* Search Box */}
-              <div className="relative">
-                <Search
-                  className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                  aria-hidden="true"
-                />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="筛选题型、图类或真题（如 2024）"
-                  aria-label="Filter essay template categories"
-                  className="w-full pl-9 pr-8 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    aria-label="Clear search"
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" aria-hidden="true" />
-                  </button>
-                )}
-              </div>
-
-              {/* Category List */}
-              {filteredTemplates.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-xl p-5 text-center space-y-3">
-                  <p className="text-sm text-slate-600">未找到匹配的模板分类。</p>
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="px-3 py-1.5 text-xs font-medium text-sky-700 bg-sky-50 rounded-lg hover:bg-sky-100 transition-colors cursor-pointer"
-                  >
-                    重置筛选
-                  </button>
-                </div>
-              ) : (
-                <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-200">
-                  {CATEGORY_GROUPS.map((group) => {
-                    const items = filteredTemplates.filter((t) => t.group === group.id);
-                    if (items.length === 0) return null;
-
+          <div className="flex flex-col md:flex-row gap-6 lg:gap-8 items-start">
+            {/* Left Category Sidebar (independently scrollable on tablet & desktop) */}
+            <aside className="w-full md:w-[260px] lg:w-[290px] shrink-0 md:sticky md:top-20 md:h-[calc(100dvh-6rem)] flex flex-col gap-4">
+              {/* Pinned Controls: Part A / Part B Filter + Search */}
+              <div className="shrink-0 space-y-3">
+                {/* Part A / Part B Filter */}
+                <div
+                  role="tablist"
+                  aria-label="Filter by essay part"
+                  className="grid grid-cols-3 gap-1 p-1 bg-slate-200/70 rounded-lg"
+                >
+                  {(
+                    [
+                      { id: 'all', label: `全部 (${ALL_TEMPLATES.length})` },
+                      {
+                        id: 'partB',
+                        label: `大作文 (${ALL_TEMPLATES.filter((t) => t.part === 'partB').length})`,
+                      },
+                      {
+                        id: 'partA',
+                        label: `小作文 (${ALL_TEMPLATES.filter((t) => t.part === 'partA').length})`,
+                      },
+                    ] as const
+                  ).map((item) => {
+                    const isActive = partFilter === item.id;
                     return (
-                      <div key={group.id} className="p-3 space-y-1.5">
-                        <div className="px-2.5 pt-1 pb-1 text-xs font-semibold text-slate-500">
-                          {group.label}
-                        </div>
-                        <div className="space-y-1">
-                          {items.map((tpl) => {
-                            const isSelected = tpl.id === activeTemplate.id;
-                            return (
-                              <button
-                                key={tpl.id}
-                                type="button"
-                                onClick={() => handleSelectTemplate(tpl.id)}
-                                className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 ${
-                                  isSelected
-                                    ? 'bg-sky-50 text-sky-950'
-                                    : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="flex items-center gap-2 min-w-0">
-                                    <span
-                                      className={`font-mono text-xs font-medium tabular-nums shrink-0 ${
-                                        isSelected ? 'text-sky-700' : 'text-slate-400'
-                                      }`}
-                                    >
-                                      {tpl.code}
-                                    </span>
-                                    <span className="text-sm font-semibold truncate">
-                                      {tpl.name}
-                                    </span>
-                                  </span>
-                                </div>
-                                <p className="mt-0.5 pl-6 text-xs text-slate-500 truncate">
-                                  {tpl.englishName}
-                                </p>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        onClick={() => handleSelectPartFilter(item.id)}
+                        className={`px-2 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
+                          isActive
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
                     );
                   })}
                 </div>
-              )}
 
-              {/* Quick Info Strip */}
-              <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2 text-xs text-slate-600">
-                <div className="font-semibold text-slate-800">英语二大作文结构准则</div>
-                <p className="leading-relaxed">
-                  第一段分题型套用，第二、三段全题型通用。全文控制在{' '}
-                  <span className="font-mono tabular-nums text-slate-900">~150</span> 词（固定{' '}
-                  <span className="font-mono tabular-nums text-slate-900">120–140</span> 词 + 填空{' '}
-                  <span className="font-mono tabular-nums text-slate-900">20–30</span> 词）。
-                </p>
+                {/* Search Box */}
+                <div className="relative">
+                  <Search
+                    className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                    aria-hidden="true"
+                  />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="筛选题型、书信或真题（如 2024）"
+                    aria-label="Filter essay template categories"
+                    className="w-full pl-9 pr-8 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      aria-label="Clear search"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Independent Scroll Region: Category List + Quick Info */}
+              <div className="md:flex-1 md:min-h-0 md:overflow-y-auto md:overscroll-contain md:pr-1 touch-pan-y sidebar-scroll space-y-4">
+                {filteredTemplates.length === 0 ? (
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 text-center space-y-3">
+                    <p className="text-sm text-slate-600">未找到匹配的模板分类。</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setPartFilter('all');
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium text-sky-700 bg-sky-50 rounded-lg hover:bg-sky-100 transition-colors cursor-pointer"
+                    >
+                      重置筛选
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-200">
+                    {CATEGORY_GROUPS.map((group) => {
+                      const items = filteredTemplates.filter((t) => t.group === group.id);
+                      if (items.length === 0) return null;
+
+                      return (
+                        <div key={group.id} className="p-3 space-y-1.5">
+                          <div className="px-2.5 pt-1 pb-1 text-xs font-semibold text-slate-500">
+                            {group.label}
+                          </div>
+                          <div className="space-y-1">
+                            {items.map((tpl) => {
+                              const isSelected = tpl.id === activeTemplate.id;
+                              return (
+                                <button
+                                  key={tpl.id}
+                                  type="button"
+                                  onClick={() => handleSelectTemplate(tpl.id)}
+                                  className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 ${
+                                    isSelected
+                                      ? 'bg-sky-50 text-sky-950'
+                                      : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="flex items-center gap-2 min-w-0">
+                                      <span
+                                        className={`font-mono text-xs font-medium tabular-nums shrink-0 ${
+                                          isSelected ? 'text-sky-700' : 'text-slate-400'
+                                        }`}
+                                      >
+                                        {tpl.code}
+                                      </span>
+                                      <span className="text-sm font-semibold truncate">
+                                        {tpl.name}
+                                      </span>
+                                    </span>
+                                  </div>
+                                  <p className="mt-0.5 pl-6 text-xs text-slate-500 truncate">
+                                    {tpl.englishName}
+                                  </p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Quick Info Strip */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2 text-xs text-slate-600">
+                  <div className="font-semibold text-slate-800">
+                    {activeTemplate.part === 'partA'
+                      ? '英语一/二小作文结构准则'
+                      : '英语二大作文结构准则'}
+                  </div>
+                  {activeTemplate.part === 'partA' ? (
+                    <p className="leading-relaxed">
+                      第一、三段按书信/通知/纪要格式套写，第二段共享{' '}
+                      <span className="font-mono tabular-nums text-slate-900">36</span> 句万能库。全文约{' '}
+                      <span className="font-mono tabular-nums text-slate-900">~100</span> 词（8 句，{' '}
+                      <span className="font-mono tabular-nums text-slate-900">10</span> 分钟内完成）。
+                    </p>
+                  ) : (
+                    <p className="leading-relaxed">
+                      第一段分题型套用，第二、三段全题型通用。全文控制在{' '}
+                      <span className="font-mono tabular-nums text-slate-900">~150</span> 词（固定{' '}
+                      <span className="font-mono tabular-nums text-slate-900">120–140</span> 词 + 填空{' '}
+                      <span className="font-mono tabular-nums text-slate-900">20–30</span> 词）。
+                    </p>
+                  )}
+                </div>
               </div>
             </aside>
 
@@ -532,7 +636,11 @@ export default function App() {
                           }`}
                         >
                           <ClipboardCheck className="w-3.5 h-3.5" aria-hidden="true" />
-                          <span>{includeReason3 ? '已含原因3（虚拟语气）' : '加入原因3（备选）'}</span>
+                          <span>
+                            {includeReason3
+                              ? `已启用：${activeTemplate.p2OptionalLabel ?? '原因3（虚拟语气）'}`
+                              : activeTemplate.p2OptionalLabel ?? '加入原因3（备选）'}
+                          </span>
                         </button>
                       )}
                       <button
@@ -586,17 +694,53 @@ export default function App() {
                         ) : (
                           <>
                             <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-                            <span>复制完整三段模板</span>
+                            <span>
+                              {activeTemplate.part === 'partA'
+                                ? '复制完整小作文模板'
+                                : '复制完整三段模板'}
+                            </span>
                           </>
                         )}
                       </button>
                     </div>
 
+                    {/* Optional Format Header Block (Letters / Notice / Minutes) */}
+                    {rawHeader && (
+                      <div className="p-6 space-y-3 bg-slate-50/40">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="text-xs font-semibold text-slate-500">
+                            Format Header · 称呼 / 标题 / 纪要表头
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => triggerCopy('header-block', resolvedHeader)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                          >
+                            {copiedKey === 'header-block' ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-700" aria-hidden="true" />
+                                <span className="text-emerald-700">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" aria-hidden="true" />
+                                <span>Copy Header</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <p className="font-serif text-[17px] leading-[1.75] text-slate-800 whitespace-pre-line">
+                          {renderInteractiveProse(rawHeader, currentValues, handleFocusKeyword)}
+                        </p>
+                      </div>
+                    )}
+
                     {/* Paragraph 1 */}
                     <div className="p-6 space-y-3">
                       <div className="flex items-center justify-between gap-4">
                         <div className="text-xs font-semibold text-slate-500">
-                          Paragraph 1 · 题型专属引入（总体描述 + 细节描述 + 现象/寓意）
+                          {activeTemplate.p1Label ??
+                            'Paragraph 1 · 题型专属引入（总体描述 + 细节描述 + 现象/寓意）'}
                         </div>
                         <button
                           type="button"
@@ -625,8 +769,10 @@ export default function App() {
                     <div className="p-6 space-y-3">
                       <div className="flex items-center justify-between gap-4">
                         <div className="text-xs font-semibold text-slate-500">
-                          Paragraph 2 · 通用母版（过渡句 + 原因1 + 原因2
-                          {includeReason3 ? ' + 原因3' : ''}）
+                          {activeTemplate.p2Label ??
+                            `Paragraph 2 · 通用母版（过渡句 + 原因1 + 原因2${
+                              includeReason3 ? ' + 原因3' : ''
+                            }）`}
                         </div>
                         <button
                           type="button"
@@ -655,7 +801,8 @@ export default function App() {
                     <div className="p-6 space-y-3">
                       <div className="flex items-center justify-between gap-4">
                         <div className="text-xs font-semibold text-slate-500">
-                          Paragraph 3 · 通用母版（总结全文 + 具体措施1&amp;2 + 畅想未来）
+                          {activeTemplate.p3Label ??
+                            'Paragraph 3 · 通用母版（总结全文 + 具体措施1&2 + 畅想未来）'}
                         </div>
                         <button
                           type="button"
@@ -679,6 +826,37 @@ export default function App() {
                         {renderInteractiveProse(rawP3, currentValues, handleFocusKeyword)}
                       </p>
                     </div>
+
+                    {/* Optional Format Footer Block (Sign-off / Date) */}
+                    {rawFooter && (
+                      <div className="p-6 space-y-3 bg-slate-50/40 rounded-b-xl">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="text-xs font-semibold text-slate-500">
+                            Format Sign-off · 落款与日期
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => triggerCopy('footer-block', resolvedFooter)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                          >
+                            {copiedKey === 'footer-block' ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-700" aria-hidden="true" />
+                                <span className="text-emerald-700">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" aria-hidden="true" />
+                                <span>Copy Sign-off</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <p className="font-serif text-[17px] leading-[1.75] text-slate-800 whitespace-pre-line">
+                          {renderInteractiveProse(rawFooter, currentValues, handleFocusKeyword)}
+                        </p>
+                      </div>
+                    )}
                   </section>
 
                   {/* Alternative Paragraph 1 Opening Sentences */}
@@ -845,11 +1023,18 @@ export default function App() {
                     </button>
                   </div>
 
-                  {[
-                    { key: 'ex-p1', label: '第一段（PDF 真题示例）', text: activeTemplate.examExample.p1 },
-                    { key: 'ex-p2', label: '第二段（PDF 对应原因句 / 母版组合）', text: activeTemplate.examExample.p2 },
-                    { key: 'ex-p3', label: '第三段（PDF 对应总结措施 / 母版组合）', text: activeTemplate.examExample.p3 },
-                  ].map((para) => (
+                  {(activeTemplate.part === 'partA'
+                    ? [
+                        { key: 'ex-p1', label: 'Part 1（称呼 / 表头 + 首段 PDF 真题示例）', text: activeTemplate.examExample.p1 },
+                        { key: 'ex-p2', label: 'Part 2（核心内容段 · 36 句库套用示例）', text: activeTemplate.examExample.p2 },
+                        { key: 'ex-p3', label: 'Part 3（结尾情感 / 回复 + 落款格式）', text: activeTemplate.examExample.p3 },
+                      ]
+                    : [
+                        { key: 'ex-p1', label: '第一段（PDF 真题示例）', text: activeTemplate.examExample.p1 },
+                        { key: 'ex-p2', label: '第二段（PDF 对应原因句 / 母版组合）', text: activeTemplate.examExample.p2 },
+                        { key: 'ex-p3', label: '第三段（PDF 对应总结措施 / 母版组合）', text: activeTemplate.examExample.p3 },
+                      ]
+                  ).map((para) => (
                     <div key={para.key} className="p-6 space-y-3">
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-xs font-semibold text-slate-500">{para.label}</span>
@@ -886,8 +1071,8 @@ export default function App() {
       {/* Quiet Footer */}
       <footer className="border-t border-slate-200 bg-white mt-12">
         <div className="max-w-[1360px] mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-          <span>考研英语二大作文可填空模板库 · 严格依据《27考研英语大作文模板》整理</span>
-          <span className="tabular-nums">共 8 类模板 · 目标字数约 150 词</span>
+          <span>考研英语二大小作文可填空模板库 · 严格依据《27大作文模板》《25小作文模板》整理</span>
+          <span className="tabular-nums">共 {ALL_TEMPLATES.length} 类模板 · 大作文约 150 词 · 小作文约 100 词</span>
         </div>
       </footer>
     </div>
